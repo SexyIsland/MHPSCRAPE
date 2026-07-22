@@ -1,0 +1,79 @@
+import requests
+import json
+import os
+import time
+
+url = "https://loopnet-api3.p.rapidapi.com/search/bylocation"
+
+headers = {
+    "x-rapidapi-host": "loopnet-api3.p.rapidapi.com",
+    "x-rapidapi-key": "insert your API key"
+}
+
+# List of major states (or specific cities) to query
+target_locations = [
+ "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+    "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+    "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma",
+    "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+    "West Virginia", "Wisconsin", "Wyoming", "District of Columbia"
+]
+
+all_listings = []
+seen_ids = set()
+
+print("Starting nationwide query for Mobile Home Parks...\n")
+
+for location in target_locations:
+    print(f"Querying location: {location}...")
+    
+    params = {
+        "location": location,
+        "searchType": "For_Sale",
+        "keywords": "mobile home park",
+        "page": 1,
+        "resultCount": 25
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("searchResults", [])
+            
+            new_count = 0
+            for item in results:
+                prop_id = item.get("id") or item.get("propertyId") or item.get("url")
+                
+                # Avoid duplicates across regions
+                if prop_id and prop_id not in seen_ids:
+                    seen_ids.add(prop_id)
+                    all_listings.append(item)
+                    new_count += 1
+            
+            print(f"  -> Found {len(results)} raw listings ({new_count} new unique added).")
+        else:
+            print(f"  -> Error {response.status_code} for {location}: {response.text[:100]}")
+
+    except Exception as e:
+        print(f"  -> Request failed for {location}: {e}")
+
+    # Small pause to avoid hitting rate limits
+    time.sleep(1)
+
+# Save consolidated results
+script_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(script_dir, "raw_listings.json")
+
+with open(file_path, "w", encoding="utf-8") as f:
+    json.dump(all_listings, f, indent=2)
+
+print("\n" + "="*50)
+print(f"DONE! Saved {len(all_listings)} unique Mobile Home Park listings across the US to:")
+print(file_path)
+print("="*50)
